@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Charge Réservoirs — EXTINCTIUM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg: #14171c;
+    --panel: #1d2128;
+    --panel-2: #242931;
+    --border: #2e333d;
+    --text: #f2f4f7;
+    --text-dim: #8a93a3;
+    --neuf: #2fcf86;
+    --neuf-dim: #1d4a37;
+    --reco: #f5973d;
+    --reco-dim: #4a3520;
+    --accent: #4f8cff;
+    --danger: #e5534b;
+    --radius: 14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:'Inter',sans-serif; overscroll-behavior:none; user-select:none;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .disp{font-family:'Oswald',sans-serif;}
+
+  /* ---------- LOGIN ---------- */
+  #login-screen{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 20%, #1c2128 0%, #0e1014 75%);
+    flex-direction:column; gap:24px; padding:20px; z-index:50;
+  }
+  .login-box{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:32px 28px; width:100%; max-width:420px; text-align:center;
+  }
+  .login-icon{
+    width:64px; height:64px; margin:0 auto 14px; border-radius:50%;
+    background:conic-gradient(var(--neuf) 0deg 180deg, var(--reco) 180deg 360deg);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .login-icon::after{content:""; width:40px; height:40px; border-radius:50%; background:var(--panel);}
+  .login-title{font-family:'Oswald',sans-serif; font-size:20px; letter-spacing:.04em; text-transform:uppercase; margin:0 0 4px;}
+  .login-sub{color:var(--text-dim); font-size:13px; margin:0 0 24px;}
+
+  /* Mode choice */
+  .mode-choice{display:flex; gap:12px; margin-bottom:0;}
+  .mode-btn{
+    flex:1; border:none; border-radius:12px; padding:18px 10px; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:16px; letter-spacing:.04em; text-transform:uppercase;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .mode-btn .mode-icon{font-size:28px;}
+  .mode-btn.operateur{background:var(--neuf-dim); color:var(--neuf);}
+  .mode-btn.operateur:active{filter:brightness(1.2);}
+  .mode-btn.admin{background:var(--panel-2); color:var(--text-dim); border:1px solid var(--border);}
+  .mode-btn.admin:active{filter:brightness(1.2);}
+
+  /* PIN pad */
+  #pin-zone{display:none; margin-top:20px;}
+  #pin-display{
+    font-family:'IBM Plex Mono',monospace; font-size:28px; letter-spacing:12px;
+    height:44px; margin-bottom:14px; color:var(--text);
+  }
+  .keypad{display:flex; flex-wrap:nowrap; gap:6px; justify-content:center;}
+  .keypad button{
+    flex:1; min-width:0; background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    font-family:'Oswald',sans-serif; font-size:18px; border-radius:10px; padding:14px 0; cursor:pointer;
+  }
+  .keypad button:active{background:#2c3340;}
+  #login-error{color:var(--danger); font-size:12px; height:16px; margin-top:8px;}
+  .back-link{color:var(--text-dim); font-size:12px; margin-top:12px; cursor:pointer; text-decoration:underline dotted;}
+
+  /* ---------- APP SHELL ---------- */
+  #app{display:none; min-height:100%; flex-direction:column;}
+  header.topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; border-bottom:1px solid var(--border); background:var(--panel);
+    position:sticky; top:0; z-index:10;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-dot{width:10px; height:10px; border-radius:50%; background:var(--neuf); box-shadow:0 0 8px var(--neuf);}
+  .brand-name{font-family:'Oswald',sans-serif; font-size:15px; letter-spacing:.05em; text-transform:uppercase;}
+  .topbar-date{font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--text-dim); text-transform:capitalize;}
+  .tabs{display:flex; gap:6px;}
+  .tab-btn{
+    background:transparent; border:1px solid var(--border); color:var(--text-dim);
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:600; padding:8px 14px;
+    border-radius:8px; cursor:pointer;
+  }
+  .tab-btn.active{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .logout-btn{
+    background:transparent; border:1px solid var(--border); color:var(--text-dim);
+    font-size:13px; padding:8px 12px; border-radius:8px; cursor:pointer; white-space:nowrap;
+  }
+  .logout-btn:active{background:var(--panel-2);}
+
+  /* Clôture journée */
+  .close-day-bar{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:14px 18px; margin-top:16px;
+  }
+  .close-day-info{font-size:13px; color:var(--text-dim);}
+  .close-day-info strong{color:var(--text); font-weight:600;}
+  .close-day-btn{
+    background:#2a3a2a; border:1px solid var(--neuf); color:var(--neuf);
+    font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:.04em; padding:10px 20px;
+    border-radius:10px; cursor:pointer; white-space:nowrap;
+  }
+  .close-day-btn:active{filter:brightness(1.3);}
+  .close-day-btn.closed{background:#1d4a37; color:var(--neuf); cursor:default; border-color:var(--neuf);}
+  .block-banner{
+    background:#3a2020; border:1px solid var(--danger); border-radius:12px;
+    padding:14px 18px; margin-bottom:16px; display:none;
+  }
+  .block-banner p{margin:0 0 8px; color:var(--danger); font-weight:600; font-size:14px;}
+  .block-banner span{font-size:13px; color:#c47070;}
+  .block-banner button{
+    margin-top:10px; background:var(--danger); border:none; color:#fff;
+    font-family:'Oswald',sans-serif; font-size:13px; padding:8px 16px; border-radius:8px; cursor:pointer;
+  }
+
+  /* Filtre date admin */
+  .range-bar{
+    display:flex; align-items:center; gap:10px; background:var(--panel);
+    border:1px solid var(--border); border-radius:12px; padding:12px 16px; margin-bottom:16px; flex-wrap:wrap;
+  }
+  .range-bar label{font-size:13px; color:var(--text-dim); white-space:nowrap;}
+  .range-bar input[type=date]{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:7px 10px; font-family:'IBM Plex Mono',monospace; font-size:13px;
+  }
+  .range-bar span{color:var(--text-dim); font-size:13px;}
+  .range-bar .apply-btn{
+    background:var(--accent); border:none; color:#fff; border-radius:8px;
+    font-family:'Oswald',sans-serif; font-size:13px; padding:8px 16px; cursor:pointer; white-space:nowrap;
+  }
+  .range-bar .xl-btn{
+    background:#1e4a1e; border:1px solid #2fcf86; color:var(--neuf); border-radius:8px;
+    font-family:'Oswald',sans-serif; font-size:13px; padding:8px 16px; cursor:pointer; white-space:nowrap; margin-left:auto;
+  }
+  .range-presets{display:flex; gap:6px; flex-wrap:wrap;}
+  .range-presets button{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text-dim);
+    font-size:11px; padding:5px 10px; border-radius:6px; cursor:pointer;
+  }
+  .range-presets button:active{background:var(--accent); border-color:var(--accent); color:#fff;}
+
+  /* Historique journalier */
+  .day-hist-table{width:100%; border-collapse:collapse; font-size:13px;}
+  .day-hist-table th{text-align:left; color:var(--text-dim); font-weight:600; font-size:11px;
+    text-transform:uppercase; letter-spacing:.05em; padding:8px 10px; border-bottom:1px solid var(--border);}
+  .day-hist-table td{padding:8px 10px; border-bottom:1px solid var(--border); font-family:'IBM Plex Mono',monospace;}
+  .day-hist-table tr:hover td{background:var(--panel-2);}
+  .st-open{color:var(--reco); font-size:11px; font-family:'Inter',sans-serif; font-weight:600;}
+  .st-closed{color:var(--neuf); font-size:11px; font-family:'Inter',sans-serif; font-weight:600;}
+  .date-bar{
+    display:flex; align-items:center; gap:10px; background:var(--panel);
+    border:1px solid var(--border); border-radius:12px; padding:10px 16px; margin-bottom:16px; flex-wrap:wrap;
+  }
+  .date-bar label{font-size:13px; color:var(--text-dim); white-space:nowrap;}
+  .date-bar input[type=date]{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:8px 12px; font-family:'IBM Plex Mono',monospace; font-size:14px; cursor:pointer;
+  }
+  .date-bar .today-btn{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text-dim);
+    border-radius:8px; padding:8px 12px; font-size:13px; cursor:pointer; white-space:nowrap;
+  }
+  .date-bar .today-btn:active{filter:brightness(1.2);}
+  .date-warning{
+    font-size:12px; color:var(--reco); background:var(--reco-dim); padding:4px 10px;
+    border-radius:6px; display:none;
+  }
+
+  main{flex:1; padding:20px; max-width:1100px; margin:0 auto; width:100%;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* ---------- DASHBOARD ---------- */
+  .counters-row{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px;}
+  @media(max-width:680px){.counters-row{grid-template-columns:1fr;}}
+
+  .counter-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:22px; text-align:center; position:relative;
+  }
+  .counter-card.neuf{box-shadow: inset 0 0 0 1px rgba(47,207,134,.15);}
+  .counter-card.reco{box-shadow: inset 0 0 0 1px rgba(245,151,61,.15);}
+  .counter-label{
+    font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--text-dim); margin-bottom:6px;
+  }
+  .gauge-wrap{position:relative; width:200px; height:200px; margin:6px auto 8px;}
+  .gauge-wrap svg{transform:rotate(-90deg);}
+  .gauge-track{fill:none; stroke:var(--panel-2); stroke-width:14;}
+  .gauge-fill{fill:none; stroke-width:14; stroke-linecap:round; transition:stroke-dashoffset .35s ease;}
+  .neuf .gauge-fill{stroke:var(--neuf);}
+  .reco .gauge-fill{stroke:var(--reco);}
+  .gauge-center{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .gauge-num{font-family:'Oswald',sans-serif; font-size:54px; font-weight:600; line-height:1;}
+  .neuf .gauge-num{color:var(--neuf);}
+  .reco .gauge-num{color:var(--reco);}
+  .gauge-target{font-size:12px; color:var(--text-dim); margin-top:4px;}
+
+  .counter-controls{display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px;}
+  .step-btn{
+    width:54px; height:54px; border-radius:50%; border:none; cursor:pointer;
+    font-family:'Oswald',sans-serif; font-size:26px; color:#fff;
+  }
+  .neuf .step-btn{background:var(--neuf-dim); color:var(--neuf);}
+  .reco .step-btn{background:var(--reco-dim); color:var(--reco);}
+  .step-btn:active{filter:brightness(1.3);}
+  .step-btn.minus{font-size:30px;}
+
+  .quick-add{display:flex; gap:8px; margin-top:14px;}
+  .quick-add input{
+    flex:1; background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:10px; font-size:16px; text-align:center; font-family:'IBM Plex Mono',monospace;
+  }
+  .quick-add button{
+    border:none; border-radius:8px; padding:10px 16px; font-family:'Oswald',sans-serif;
+    font-size:14px; letter-spacing:.03em; cursor:pointer; color:#0e1014; font-weight:600;
+  }
+  .neuf .quick-add button{background:var(--neuf);}
+  .reco .quick-add button{background:var(--reco);}
+
+  .target-edit{font-size:11px; color:var(--text-dim); margin-top:10px; cursor:pointer; text-decoration:underline dotted;}
+
+  .ops-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px 22px; display:flex; align-items:center; justify-content:space-between; gap:18px; margin-bottom:18px;
+    flex-wrap:wrap;
+  }
+  .ops-left{display:flex; align-items:center; gap:14px;}
+  .ops-icon{width:40px; height:40px; border-radius:10px; background:var(--panel-2); display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:20px;}
+  .ops-label{font-family:'Oswald',sans-serif; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim);}
+  .ops-input{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    font-family:'Oswald',sans-serif; font-size:30px; width:90px; text-align:center; border-radius:10px; padding:8px 0;
+  }
+  .ops-ratio{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-dim);}
+
+  .cumul-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px;}
+  @media(max-width:680px){.cumul-grid{grid-template-columns:repeat(2,1fr);}}
+  .cumul-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+  }
+  .cumul-period{font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--text-dim); margin-bottom:8px; font-family:'Oswald',sans-serif;}
+  .cumul-line{display:flex; justify-content:space-between; font-size:13px; padding:2px 0;}
+  .cumul-line .v{font-family:'IBM Plex Mono',monospace;}
+  .cumul-line.total{border-top:1px solid var(--border); margin-top:6px; padding-top:6px; font-weight:600;}
+  .dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px;}
+  .dot.neuf{background:var(--neuf);} .dot.reco{background:var(--reco);}
+
+  /* ---------- STATS / ADMIN ---------- */
+  .kpi-row{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px;}
+  @media(max-width:680px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+  .kpi-card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px;}
+  .kpi-label{font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; font-family:'Oswald',sans-serif; margin-bottom:6px;}
+  .kpi-val{font-family:'Oswald',sans-serif; font-size:26px; font-weight:600;}
+
+  .chart-row{display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px;}
+  @media(max-width:820px){.chart-row{grid-template-columns:1fr;}}
+  .chart-card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px;}
+  .chart-title{font-family:'Oswald',sans-serif; font-size:14px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); margin:0 0 12px; display:flex; justify-content:space-between; align-items:center;}
+  .chart-card canvas{max-height:260px;}
+  .seg-toggle{display:flex; gap:4px;}
+  .seg-toggle button{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text-dim);
+    font-size:11px; padding:5px 10px; border-radius:6px; cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .seg-toggle button.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+
+  .history-table{width:100%; border-collapse:collapse; font-size:13px;}
+  .history-table th{text-align:left; color:var(--text-dim); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:8px 10px; border-bottom:1px solid var(--border);}
+  .history-table td{padding:8px 10px; border-bottom:1px solid var(--border); font-family:'IBM Plex Mono',monospace;}
+  .history-table tr:hover td{background:var(--panel-2);}
+  .del-btn{background:none; border:none; color:var(--danger); cursor:pointer; font-size:13px;}
+  .badge{display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-family:'Inter',sans-serif; font-weight:600;}
+  .badge.neuf{background:var(--neuf-dim); color:var(--neuf);}
+  .badge.reco{background:var(--reco-dim); color:var(--reco);}
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:10px 18px;
+    border-radius:10px; font-size:13px; opacity:0; transition:all .25s; pointer-events:none; z-index:100;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:60;}
+  .modal-bg.show{display:flex;}
+  .modal{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:24px; width:280px; text-align:center;}
+  .modal h3{font-family:'Oswald',sans-serif; margin:0 0 14px; font-size:16px; text-transform:uppercase; letter-spacing:.05em;}
+  .modal input{width:100%; background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:10px; border-radius:8px; font-family:'IBM Plex Mono',monospace; font-size:18px; text-align:center; margin-bottom:14px;}
+  .modal-actions{display:flex; gap:10px;}
+  .modal-actions button{flex:1; border:none; padding:10px; border-radius:8px; font-family:'Oswald',sans-serif; cursor:pointer; font-size:13px;}
+  .modal-actions .ok{background:var(--accent); color:#fff;}
+  .modal-actions .cancel{background:var(--panel-2); color:var(--text-dim);}
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-icon"></div>
+    <p class="login-title">Charge Réservoirs</p>
+    <p class="login-sub">EXTINCTIUM — Choisissez votre accès</p>
+
+    <div class="mode-choice">
+      <button class="mode-btn operateur" id="btn-operateur">
+        <span class="mode-icon">👷</span>
+        Opérateur
+      </button>
+      <button class="mode-btn admin" id="btn-admin">
+        <span class="mode-icon">🔐</span>
+        Admin
+      </button>
+    </div>
+
+    <div id="pin-zone">
+      <div id="pin-display" class="mono">••••••</div>
+      <div class="keypad" id="keypad"></div>
+      <div id="login-error"></div>
+      <div class="back-link" id="back-link">← Retour</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <div class="brand-name">Charge Réservoirs</div>
+    </div>
+    <div class="topbar-date" id="topbar-date">—</div>
+    <div class="tabs">
+      <button class="tab-btn active" data-view="dashboard">Saisie</button>
+      <button class="tab-btn" data-view="stats">Statistiques</button>
+      <button class="logout-btn" id="logout-btn">🔓 Quitter</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ---------- DASHBOARD VIEW ---------- -->
+    <section class="view active" id="view-dashboard">
+
+      <div class="date-bar">
+        <label>📅 Date de saisie :</label>
+        <input type="date" id="selected-date">
+        <button class="today-btn" id="today-btn">Aujourd'hui</button>
+        <span class="date-warning" id="date-warning">⚠ Saisie sur une date passée</span>
+      </div>
+      <div class="counters-row">
+        <div class="counter-card neuf">
+          <div class="counter-label">Réservoir Neuf</div>
+          <div class="gauge-wrap">
+            <svg width="200" height="200" viewBox="0 0 200 200">
+              <circle class="gauge-track" cx="100" cy="100" r="86"/>
+              <circle class="gauge-fill" id="gauge-neuf" cx="100" cy="100" r="86"
+                stroke-dasharray="540.4" stroke-dashoffset="540.4"/>
+            </svg>
+            <div class="gauge-center">
+              <div class="gauge-num" id="count-neuf">0</div>
+              <div class="gauge-target">objectif <span id="target-neuf-disp">50</span> / jour</div>
+            </div>
+          </div>
+          <div class="counter-controls">
+            <button class="step-btn minus" data-type="neuf" data-delta="-1">−</button>
+            <button class="step-btn plus" data-type="neuf" data-delta="1">+</button>
+          </div>
+          <div class="quick-add">
+            <input type="number" inputmode="numeric" id="quick-neuf" placeholder="Qté fin de rack">
+            <button data-type="neuf" id="quick-add-neuf">Ajouter</button>
+          </div>
+          <div class="target-edit" data-type="neuf">Modifier l'objectif</div>
+        </div>
+
+        <div class="counter-card reco">
+          <div class="counter-label">Réservoir RECO</div>
+          <div class="gauge-wrap">
+            <svg width="200" height="200" viewBox="0 0 200 200">
+              <circle class="gauge-track" cx="100" cy="100" r="86"/>
+              <circle class="gauge-fill" id="gauge-reco" cx="100" cy="100" r="86"
+                stroke-dasharray="540.4" stroke-dashoffset="540.4"/>
+            </svg>
+            <div class="gauge-center">
+              <div class="gauge-num" id="count-reco">0</div>
+              <div class="gauge-target">objectif <span id="target-reco-disp">50</span> / jour</div>
+            </div>
+          </div>
+          <div class="counter-controls">
+            <button class="step-btn minus" data-type="reco" data-delta="-1">−</button>
+            <button class="step-btn plus" data-type="reco" data-delta="1">+</button>
+          </div>
+          <div class="quick-add">
+            <input type="number" inputmode="numeric" id="quick-reco" placeholder="Qté fin de rack">
+            <button data-type="reco" id="quick-add-reco">Ajouter</button>
+          </div>
+          <div class="target-edit" data-type="reco">Modifier l'objectif</div>
+        </div>
+      </div>
+
+      <div class="ops-card">
+        <div class="ops-left">
+          <div class="ops-icon">👤</div>
+          <div>
+            <div class="ops-label">Opérateurs aujourd'hui</div>
+            <div class="ops-ratio" id="ops-ratio">— réservoirs / opérateur</div>
+          </div>
+        </div>
+        <input type="number" inputmode="numeric" class="ops-input" id="ops-input" min="0" value="0">
+      </div>
+
+      <div class="cumul-grid" id="cumul-grid"></div>
+
+      <!-- Blocage si journée précédente non clôturée -->
+      <div class="block-banner" id="block-banner">
+        <p>⛔ Journée précédente non clôturée</p>
+        <span id="block-banner-msg">La journée du — n'est pas clôturée. Clôturez-la avant de saisir une nouvelle journée.</span>
+        <br><button id="block-close-btn">Clôturer cette journée</button>
+      </div>
+
+      <!-- Clôture de journée -->
+      <div class="close-day-bar" id="close-day-bar">
+        <div class="close-day-info">Statut journée <strong id="close-day-label">—</strong></div>
+        <button class="close-day-btn" id="close-day-btn">✓ Clôturer la journée</button>
+      </div>
+    </section>
+
+    <!-- ---------- STATS VIEW ---------- -->
+    <section class="view" id="view-stats">
+
+      <!-- Filtre plage de dates -->
+      <div class="range-bar">
+        <label>Du</label>
+        <input type="date" id="filter-from">
+        <span>au</span>
+        <input type="date" id="filter-to">
+        <button class="apply-btn" id="apply-filter">Filtrer</button>
+        <div class="range-presets">
+          <button data-preset="week">7j</button>
+          <button data-preset="month">Mois</button>
+          <button data-preset="quarter">3 mois</button>
+          <button data-preset="year">Année</button>
+          <button data-preset="all">Tout</button>
+        </div>
+        <button class="xl-btn" id="export-excel">⬇ Excel</button>
+      </div>
+
+      <div class="kpi-row" id="kpi-row"></div>
+
+      <div class="chart-row">
+        <div class="chart-card">
+          <p class="chart-title"><span>Évolution journalière</span></p>
+          <canvas id="chart-evolution"></canvas>
+        </div>
+        <div class="chart-card">
+          <p class="chart-title"><span>Répartition</span></p>
+          <canvas id="chart-donut"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-card">
+          <p class="chart-title">
+            <span>Comparatif</span>
+            <span class="seg-toggle" id="cmp-range">
+              <button data-mode="week" class="active">Par semaine</button>
+              <button data-mode="month">Par mois</button>
+            </span>
+          </p>
+          <canvas id="chart-compare"></canvas>
+        </div>
+        <div class="chart-card">
+          <p class="chart-title"><span>Opérateurs / jour</span></p>
+          <canvas id="chart-ops"></canvas>
+        </div>
+      </div>
+
+      <!-- Historique journalier -->
+      <div class="chart-card" style="margin-bottom:16px;">
+        <p class="chart-title"><span>Historique par jour</span></p>
+        <table class="day-hist-table">
+          <thead><tr>
+            <th>Date</th><th>Neuf</th><th>RECO</th><th>Total</th>
+            <th>Opérateurs</th><th>Ratio</th><th>Statut</th>
+          </tr></thead>
+          <tbody id="day-history-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Saisies brutes -->
+      <div class="chart-card">
+        <p class="chart-title"><span>Saisies détaillées</span></p>
+        <table class="history-table">
+          <thead><tr><th>Date</th><th>Heure</th><th>Type</th><th>Qté</th><th></th></tr></thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-bg" id="target-modal">
+  <div class="modal">
+    <h3 id="target-modal-title">Objectif</h3>
+    <input type="number" id="target-modal-input" inputmode="numeric">
+    <div class="modal-actions">
+      <button class="cancel" id="target-cancel">Annuler</button>
+      <button class="ok" id="target-ok">Valider</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURATION — à compléter après création du projet Supabase
+   ============================================================ */
+const SUPABASE_URL = "https://yvxqfampedynrchbnkrn.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2eHFmYW1wZWR5bnJjaGJua3JuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MDI4MzQsImV4cCI6MjA5ODQ3ODgzNH0.J8X_wr0yByc8x8WZmpdG3zZXgbaded2_2pigao8zUIY";
+const ADMIN_PIN = "523845"; // code d'accès unique de l'application
+
+const sb = (SUPABASE_URL.includes("VOTRE-PROJET"))
+  ? null
+  : supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ============================================================
+   ÉTAT
+   ============================================================ */
+let pinBuffer = "";
+let userRole = null;
+let CHARGES = [];
+let OPERATORS = [];
+let CLOSURES = [];
+let TARGETS = { neuf_target: 50, reco_target: 50 };
+let evoRangeDays = 14;
+let cmpMode = "week";
+let pendingTargetType = null;
+let filterFrom = null;
+let filterTo = null;
+
+const realTodayStr = () => new Date().toISOString().slice(0,10);
+const selectedDateStr = () => document.getElementById('selected-date')?.value || realTodayStr();
+const fmtDateFR = (d) => new Date(d+"T00:00:00").toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+/* ============================================================
+   LOGIN — deux modes
+   ============================================================ */
+document.getElementById('btn-operateur').addEventListener('click', ()=>{
+  userRole = 'operateur';
+  localStorage.setItem('cr_auth','op');
+  enterApp();
+});
+
+document.getElementById('btn-admin').addEventListener('click', ()=>{
+  document.getElementById('pin-zone').style.display = 'block';
+  document.querySelector('.mode-choice').style.display = 'none';
+  document.querySelector('.login-sub').textContent = 'Code administrateur';
+});
+
+document.getElementById('back-link').addEventListener('click', ()=>{
+  document.getElementById('pin-zone').style.display = 'none';
+  document.querySelector('.mode-choice').style.display = 'flex';
+  document.querySelector('.login-sub').textContent = 'EXTINCTIUM — Choisissez votre accès';
+  pinBuffer = "";
+  renderPin();
+  document.getElementById('login-error').textContent = "";
+});
+
+/* Clavier PIN — une seule ligne */
+const keypadEl = document.getElementById('keypad');
+const keys = ['1','2','3','4','5','6','7','8','9','0','C','⌫'];
+keys.forEach(k=>{
+  const b = document.createElement('button');
+  b.textContent = k;
+  b.addEventListener('click', ()=>handleKey(k));
+  keypadEl.appendChild(b);
+});
+
+function handleKey(k){
+  if(k === 'C'){ pinBuffer = ""; }
+  else if(k === '⌫'){ pinBuffer = pinBuffer.slice(0,-1); }
+  else if(pinBuffer.length < 6){ pinBuffer += k; }
+  renderPin();
+  if(pinBuffer.length === ADMIN_PIN.length){ checkPin(); }
+}
+
+function renderPin(){
+  document.getElementById('pin-display').textContent =
+    pinBuffer.padEnd(6,'•').split('').join(' ');
+}
+
+function checkPin(){
+  if(pinBuffer === ADMIN_PIN){
+    document.getElementById('login-error').textContent = "";
+    userRole = 'admin';
+    localStorage.setItem('cr_auth','admin');
+    enterApp();
+  } else {
+    document.getElementById('login-error').textContent = "Code incorrect";
+    pinBuffer = "";
+    renderPin();
+  }
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    if(btn.dataset.view === 'stats') renderStats();
+  });
+});
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ============================================================
+   ENTER APP — charge données + démarre l'UI
+   ============================================================ */
+async function enterApp(){
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+
+  const statsTab = document.querySelector('.tab-btn[data-view="stats"]');
+  if(userRole === 'operateur'){
+    statsTab.style.display = 'none';
+  } else {
+    statsTab.style.display = '';
+  }
+
+  // Init date picker saisie
+  const datePicker = document.getElementById('selected-date');
+  datePicker.value = realTodayStr();
+  datePicker.max = realTodayStr();
+  datePicker.addEventListener('change', ()=>{
+    const sel = datePicker.value;
+    document.getElementById('date-warning').style.display = sel !== realTodayStr() ? 'inline-block' : 'none';
+    loadOperatorsForDate(sel);
+    renderDashboard();
+    renderClosureBar();
+  });
+  document.getElementById('today-btn').addEventListener('click', ()=>{
+    datePicker.value = realTodayStr();
+    document.getElementById('date-warning').style.display = 'none';
+    loadOperatorsForDate(realTodayStr());
+    renderDashboard();
+    renderClosureBar();
+  });
+
+  // Init filtre admin (mois courant par défaut)
+  const now = new Date();
+  const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+  filterFrom = `${y}-${m}-01`;
+  filterTo = realTodayStr();
+  const fi = document.getElementById('filter-from');
+  const ft = document.getElementById('filter-to');
+  if(fi){ fi.value = filterFrom; }
+  if(ft){ ft.value = filterTo; }
+
+  document.getElementById('apply-filter')?.addEventListener('click', ()=>{
+    filterFrom = document.getElementById('filter-from').value;
+    filterTo = document.getElementById('filter-to').value;
+    renderStats();
+  });
+
+  document.querySelectorAll('.range-presets button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const d = new Date();
+      filterTo = realTodayStr();
+      if(btn.dataset.preset==='week'){ d.setDate(d.getDate()-6); filterFrom=d.toISOString().slice(0,10); }
+      else if(btn.dataset.preset==='month'){ filterFrom=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; }
+      else if(btn.dataset.preset==='quarter'){ d.setMonth(d.getMonth()-3); filterFrom=d.toISOString().slice(0,10); }
+      else if(btn.dataset.preset==='year'){ filterFrom=`${d.getFullYear()}-01-01`; }
+      else if(btn.dataset.preset==='all'){ filterFrom='2020-01-01'; }
+      document.getElementById('filter-from').value = filterFrom;
+      document.getElementById('filter-to').value = filterTo;
+      renderStats();
+    });
+  });
+
+  document.getElementById('export-excel')?.addEventListener('click', exportExcel);
+
+  // Bouton déconnexion
+  document.getElementById('logout-btn').addEventListener('click', ()=>{
+    if(confirm("Quitter et revenir à l'écran d'accueil ?")){
+      localStorage.removeItem('cr_auth');
+      location.reload();
+    }
+  });
+
+  // Clôture journée
+  document.getElementById('close-day-btn').addEventListener('click', ()=>closureAction());
+  document.getElementById('block-close-btn')?.addEventListener('click', ()=>closureFromBanner());
+
+  document.getElementById('topbar-date').textContent = fmtDateFR(realTodayStr());
+
+  if(!sb){
+    toast("⚠ Connexion Supabase non configurée");
+    return;
+  }
+  await loadTargets();
+  await loadOperatorsToday();
+  await loadAllCharges();
+  await loadAllClosures();
+  renderDashboard();
+  renderClosureBar();
+  checkBlockBanner();
+}
+
+/* ============================================================
+   SUPABASE — CHARGES
+   ============================================================ */
+async function loadAllCharges(){
+  const { data, error } = await sb.from('charges').select('*').order('created_at', {ascending:false});
+  if(error){ toast("Erreur chargement: "+error.message); return; }
+  CHARGES = data || [];
+}
+
+async function insertCharge(type, qty){
+  const selDate = selectedDateStr();
+  if(CLOSURES.some(c=>c.closure_date===selDate)){
+    toast("⛔ Cette journée est clôturée"); return;
+  }
+  if(isBlockedByPrevDay() && selDate === realTodayStr()){
+    toast("⛔ Clôturez d'abord la journée précédente"); return;
+  }
+  const { error } = await sb.from('charges').insert({
+    charge_date: selDate, type, quantity: qty
+  });
+  if(error){ toast("Erreur: "+error.message); return; }
+  await loadAllCharges();
+  renderDashboard();
+  if(document.getElementById('view-stats').classList.contains('active')) renderStats();
+}
+
+async function deleteCharge(id){
+  const { error } = await sb.from('charges').delete().eq('id', id);
+  if(error){ toast("Erreur suppression"); return; }
+  await loadAllCharges();
+  renderDashboard();
+  renderStats();
+  toast("Saisie supprimée");
+}
+
+/* ============================================================
+   SUPABASE — OPERATORS
+   ============================================================ */
+async function loadOperatorsToday(){
+  await loadOperatorsForDate(selectedDateStr());
+}
+
+async function loadOperatorsForDate(dateStr){
+  const { data } = await sb.from('operators').select('*').eq('op_date', dateStr).maybeSingle();
+  document.getElementById('ops-input').value = data ? data.count : 0;
+}
+
+async function loadAllOperators(){
+  const { data, error } = await sb.from('operators').select('*').order('op_date', {ascending:true});
+  if(!error) OPERATORS = data || [];
+}
+
+async function saveOperatorsToday(count){
+  const dateStr = selectedDateStr();
+  const { error } = await sb.from('operators').upsert({
+    op_date: dateStr, count, updated_at: new Date().toISOString()
+  }, { onConflict: 'op_date' });
+  if(error){ toast("Erreur: "+error.message); return; }
+  toast("Opérateurs enregistrés");
+  await loadAllOperators();
+  renderRatio();
+}
+
+/* ============================================================
+   SUPABASE — CLOSURES
+   ============================================================ */
+async function loadAllClosures(){
+  const { data, error } = await sb.from('closures').select('*');
+  if(!error) CLOSURES = data || [];
+}
+
+function isDateClosed(dateStr){
+  return CLOSURES.some(c=>c.closure_date===dateStr);
+}
+
+function getLastUnclosedDay(){
+  // Trouve la dernière date avec des charges, avant aujourd'hui, non clôturée
+  const today = realTodayStr();
+  const datesWithData = [...new Set(CHARGES.map(c=>c.charge_date))]
+    .filter(d=>d<today).sort();
+  if(!datesWithData.length) return null;
+  const lastDay = datesWithData[datesWithData.length-1];
+  if(isDateClosed(lastDay)) return null;
+  return lastDay;
+}
+
+function isBlockedByPrevDay(){
+  return userRole === 'operateur' && getLastUnclosedDay() !== null;
+}
+
+function checkBlockBanner(){
+  const banner = document.getElementById('block-banner');
+  const msg = document.getElementById('block-banner-msg');
+  const unclosed = getLastUnclosedDay();
+  if(unclosed && userRole === 'operateur'){
+    banner.style.display = 'block';
+    msg.textContent = `La journée du ${new Date(unclosed+"T00:00:00").toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})} n'est pas clôturée. Clôturez-la avant de saisir une nouvelle journée.`;
+    banner._unclosedDate = unclosed;
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+async function closureAction(){
+  const selDate = selectedDateStr();
+  if(isDateClosed(selDate)){
+    toast("Journée déjà clôturée"); return;
+  }
+  if(!confirm(`Clôturer la journée du ${new Date(selDate+"T00:00:00").toLocaleDateString('fr-FR',{day:'numeric',month:'long'})} ?`)) return;
+  const { error } = await sb.from('closures').insert({
+    closure_date: selDate, closed_by: userRole
+  });
+  if(error){ toast("Erreur: "+error.message); return; }
+  await loadAllClosures();
+  renderClosureBar();
+  checkBlockBanner();
+  toast("Journée clôturée ✓");
+}
+
+async function closureFromBanner(){
+  const banner = document.getElementById('block-banner');
+  const dateToClose = banner._unclosedDate;
+  if(!dateToClose) return;
+  if(!confirm(`Clôturer la journée du ${new Date(dateToClose+"T00:00:00").toLocaleDateString('fr-FR',{day:'numeric',month:'long'})} ?`)) return;
+  const { error } = await sb.from('closures').insert({
+    closure_date: dateToClose, closed_by: userRole
+  });
+  if(error){ toast("Erreur: "+error.message); return; }
+  await loadAllClosures();
+  checkBlockBanner();
+  renderClosureBar();
+  toast("Journée clôturée ✓");
+}
+
+function renderClosureBar(){
+  const selDate = selectedDateStr();
+  const closed = isDateClosed(selDate);
+  const label = document.getElementById('close-day-label');
+  const btn = document.getElementById('close-day-btn');
+  if(label) label.textContent = new Date(selDate+"T00:00:00").toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  if(closed){
+    btn.textContent = '✓ Journée clôturée';
+    btn.classList.add('closed');
+    btn.disabled = true;
+  } else {
+    btn.textContent = '✓ Clôturer la journée';
+    btn.classList.remove('closed');
+    btn.disabled = false;
+  }
+  // Désactiver saisies si clôturée
+  document.querySelectorAll('.step-btn, #quick-add-neuf, #quick-add-reco').forEach(el=>{
+    el.disabled = closed;
+    el.style.opacity = closed ? '0.4' : '1';
+  });
+}
+
+document.getElementById('ops-input').addEventListener('change', (e)=>{
+  const v = Math.max(0, parseInt(e.target.value)||0);
+  e.target.value = v;
+  saveOperatorsToday(v);
+});
+
+/* ============================================================
+   SUPABASE — TARGETS
+   ============================================================ */
+async function loadTargets(){
+  const { data } = await sb.from('targets').select('*').eq('id',1).maybeSingle();
+  if(data) TARGETS = data;
+  document.getElementById('target-neuf-disp').textContent = TARGETS.neuf_target;
+  document.getElementById('target-reco-disp').textContent = TARGETS.reco_target;
+}
+
+async function saveTarget(type, value){
+  const field = type === 'neuf' ? 'neuf_target' : 'reco_target';
+  TARGETS[field] = value;
+  const { error } = await sb.from('targets').update({[field]: value}).eq('id',1);
+  if(error){ toast("Erreur: "+error.message); return; }
+  document.getElementById('target-'+type+'-disp').textContent = value;
+  renderDashboard();
+}
+
+/* ============================================================
+   COUNTER ACTIONS
+   ============================================================ */
+document.querySelectorAll('.step-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    insertCharge(btn.dataset.type, parseInt(btn.dataset.delta));
+  });
+});
+
+document.getElementById('quick-add-neuf').addEventListener('click', ()=>quickAdd('neuf'));
+document.getElementById('quick-add-reco').addEventListener('click', ()=>quickAdd('reco'));
+
+function quickAdd(type){
+  const input = document.getElementById('quick-'+type);
+  const val = parseInt(input.value);
+  if(!val || val === 0){ toast("Saisis une quantité"); return; }
+  insertCharge(type, val);
+  input.value = "";
+}
+
+document.querySelectorAll('.target-edit').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    pendingTargetType = el.dataset.type;
+    document.getElementById('target-modal-title').textContent =
+      "Objectif " + (pendingTargetType === 'neuf' ? 'Neuf' : 'RECO') + " / jour";
+    document.getElementById('target-modal-input').value =
+      pendingTargetType === 'neuf' ? TARGETS.neuf_target : TARGETS.reco_target;
+    document.getElementById('target-modal').classList.add('show');
+  });
+});
+document.getElementById('target-cancel').addEventListener('click', ()=>{
+  document.getElementById('target-modal').classList.remove('show');
+});
+document.getElementById('target-ok').addEventListener('click', ()=>{
+  const v = Math.max(1, parseInt(document.getElementById('target-modal-input').value)||1);
+  saveTarget(pendingTargetType, v);
+  document.getElementById('target-modal').classList.remove('show');
+});
+
+/* ============================================================
+   DASHBOARD RENDERING
+   ============================================================ */
+function sumByTypeAndDate(type, dateFilter){
+  return CHARGES.filter(c => c.type === type && dateFilter(c.charge_date))
+    .reduce((s,c)=>s + c.quantity, 0);
+}
+
+function isSelectedDate(d){ return d === selectedDateStr(); }
+function isThisWeek(d){
+  const now = new Date(); const day = new Date(d+"T00:00:00");
+  const monday = new Date(now); const wd = (now.getDay()+6)%7;
+  monday.setDate(now.getDate()-wd); monday.setHours(0,0,0,0);
+  return day >= monday;
+}
+function isThisMonth(d){
+  const now = new Date(); const day = new Date(d+"T00:00:00");
+  return day.getFullYear()===now.getFullYear() && day.getMonth()===now.getMonth();
+}
+function isThisYear(d){
+  const now = new Date(); const day = new Date(d+"T00:00:00");
+  return day.getFullYear()===now.getFullYear();
+}
+
+const GAUGE_CIRC = 2 * Math.PI * 86;
+
+function renderDashboard(){
+  const neufSel = sumByTypeAndDate('neuf', isSelectedDate);
+  const recoSel = sumByTypeAndDate('reco', isSelectedDate);
+
+  document.getElementById('count-neuf').textContent = neufSel;
+  document.getElementById('count-reco').textContent = recoSel;
+
+  setGauge('gauge-neuf', neufSel, TARGETS.neuf_target);
+  setGauge('gauge-reco', recoSel, TARGETS.reco_target);
+
+  renderCumulGrid();
+  renderRatio();
+}
+
+function setGauge(elId, value, target){
+  const pct = Math.min(1, target > 0 ? value/target : 0);
+  const offset = GAUGE_CIRC * (1 - pct);
+  const el = document.getElementById(elId);
+  el.setAttribute('stroke-dasharray', GAUGE_CIRC.toFixed(1));
+  el.setAttribute('stroke-dashoffset', offset.toFixed(1));
+}
+
+function renderCumulGrid(){
+  const selDate = selectedDateStr();
+  const selLabel = selDate === realTodayStr() ? 'Aujourd\'hui' : new Date(selDate+"T00:00:00").toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'});
+  const periods = [
+    {label: selLabel, filter: isSelectedDate},
+    {label:'Semaine', filter:isThisWeek},
+    {label:'Mois', filter:isThisMonth},
+    {label:'Année', filter:isThisYear},
+  ];
+  const grid = document.getElementById('cumul-grid');
+  grid.innerHTML = "";
+  periods.forEach(p=>{
+    const n = sumByTypeAndDate('neuf', p.filter);
+    const r = sumByTypeAndDate('reco', p.filter);
+    const card = document.createElement('div');
+    card.className = 'cumul-card';
+    card.innerHTML = `
+      <div class="cumul-period">${p.label}</div>
+      <div class="cumul-line"><span><span class="dot neuf"></span>Neuf</span><span class="v">${n}</span></div>
+      <div class="cumul-line"><span><span class="dot reco"></span>RECO</span><span class="v">${r}</span></div>
+      <div class="cumul-line total"><span>Total</span><span class="v">${n+r}</span></div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+async function renderRatio(){
+  if(!OPERATORS.length) await loadAllOperators();
+  const opSel = OPERATORS.find(o=>o.op_date === selectedDateStr());
+  const opCount = opSel ? opSel.count : 0;
+  const total = sumByTypeAndDate('neuf', isSelectedDate) + sumByTypeAndDate('reco', isSelectedDate);
+  const ratioEl = document.getElementById('ops-ratio');
+  ratioEl.textContent = opCount > 0
+    ? (total/opCount).toFixed(1) + " réservoirs / opérateur aujourd'hui"
+    : "— réservoirs / opérateur";
+}
+
+/* ============================================================
+   STATS VIEW
+   ============================================================ */
+let chartEvolution, chartDonut, chartCompare, chartOps;
+
+document.getElementById('cmp-range').addEventListener('click', (e)=>{
+  if(e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#cmp-range button').forEach(b=>b.classList.remove('active'));
+  e.target.classList.add('active');
+  cmpMode = e.target.dataset.mode;
+  renderStats();
+});
+
+function inRange(d){
+  return (!filterFrom || d >= filterFrom) && (!filterTo || d <= filterTo);
+}
+
+async function renderStats(){
+  if(!OPERATORS.length) await loadAllOperators();
+  renderKpis();
+  renderEvolutionChart();
+  renderDonutChart();
+  renderCompareChart();
+  renderOpsChart();
+  renderDayHistory();
+  renderHistory();
+}
+
+function renderKpis(){
+  const totalNeuf = sumByTypeAndDate('neuf', inRange);
+  const totalReco = sumByTypeAndDate('reco', inRange);
+  const opsInRange = OPERATORS.filter(o=>inRange(o.op_date));
+  const totalOps = opsInRange.reduce((s,o)=>s+o.count, 0);
+  const totalAll = totalNeuf + totalReco;
+  const avgPerOp = totalOps > 0 ? (totalAll/totalOps).toFixed(1) : '—';
+  const nbJours = [...new Set(CHARGES.filter(c=>inRange(c.charge_date)).map(c=>c.charge_date))].length;
+
+  const kpis = [
+    {label:'Total Neuf', val: totalNeuf},
+    {label:'Total RECO', val: totalReco},
+    {label:'Total réservoirs', val: totalAll},
+    {label:'Moy. / opérateur / jour', val: avgPerOp},
+  ];
+  document.getElementById('kpi-row').innerHTML = kpis.map(k=>`
+    <div class="kpi-card">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-val">${k.val}</div>
+    </div>`).join('');
+}
+
+function datesInRange(){
+  const from = new Date(filterFrom+"T00:00:00");
+  const to = new Date(filterTo+"T00:00:00");
+  const arr = [];
+  const cur = new Date(from);
+  while(cur <= to){
+    arr.push(cur.toISOString().slice(0,10));
+    cur.setDate(cur.getDate()+1);
+  }
+  return arr;
+}
+
+function renderEvolutionChart(){
+  const dates = datesInRange().slice(-90); // max 90 pts
+  const neufData = dates.map(d => sumByTypeAndDate('neuf', x=>x===d));
+  const recoData = dates.map(d => sumByTypeAndDate('reco', x=>x===d));
+  const labels = dates.map(d => new Date(d+"T00:00:00").toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}));
+  if(chartEvolution) chartEvolution.destroy();
+  chartEvolution = new Chart(document.getElementById('chart-evolution'), {
+    type:'line',
+    data:{ labels, datasets:[
+      {label:'Neuf', data:neufData, borderColor:'#2fcf86', backgroundColor:'rgba(47,207,134,.12)', fill:true, tension:.3},
+      {label:'RECO', data:recoData, borderColor:'#f5973d', backgroundColor:'rgba(245,151,61,.12)', fill:true, tension:.3},
+    ]},
+    options: baseChartOptions()
+  });
+}
+
+function renderDonutChart(){
+  const totalNeuf = sumByTypeAndDate('neuf', inRange);
+  const totalReco = sumByTypeAndDate('reco', inRange);
+  if(chartDonut) chartDonut.destroy();
+  chartDonut = new Chart(document.getElementById('chart-donut'), {
+    type:'doughnut',
+    data:{ labels:['Neuf','RECO'], datasets:[{ data:[totalNeuf, totalReco], backgroundColor:['#2fcf86','#f5973d'], borderWidth:0 }]},
+    options:{ plugins:{ legend:{ labels:{ color:'#f2f4f7', font:{family:'Inter'} } } } }
+  });
+}
+
+function isoWeekLabel(d){
+  const date = new Date(d+"T00:00:00");
+  const target = new Date(date.valueOf());
+  const dayNr = (date.getDay()+6)%7;
+  target.setDate(target.getDate()-dayNr+3);
+  const firstThursday = new Date(target.getFullYear(),0,4);
+  const week = 1 + Math.round(((target-firstThursday)/86400000 - 3 + ((firstThursday.getDay()+6)%7))/7);
+  return `S${week}`;
+}
+
+function renderCompareChart(){
+  const buckets = {};
+  CHARGES.filter(c=>inRange(c.charge_date)).forEach(c=>{
+    const key = cmpMode === 'week'
+      ? isoWeekLabel(c.charge_date)
+      : new Date(c.charge_date+"T00:00:00").toLocaleDateString('fr-FR',{month:'short', year:'2-digit'});
+    if(!buckets[key]) buckets[key] = {neuf:0, reco:0, order: c.charge_date};
+    buckets[key][c.type] += c.quantity;
+  });
+  const keys = Object.keys(buckets).sort((a,b)=>buckets[a].order.localeCompare(buckets[b].order)).slice(-16);
+  if(chartCompare) chartCompare.destroy();
+  chartCompare = new Chart(document.getElementById('chart-compare'), {
+    type:'bar',
+    data:{ labels:keys, datasets:[
+      {label:'Neuf', data:keys.map(k=>buckets[k].neuf), backgroundColor:'#2fcf86'},
+      {label:'RECO', data:keys.map(k=>buckets[k].reco), backgroundColor:'#f5973d'},
+    ]},
+    options:{ ...baseChartOptions(), scales:{
+      x:{ stacked:true, ticks:{color:'#8a93a3'}, grid:{color:'#2e333d'} },
+      y:{ stacked:true, ticks:{color:'#8a93a3'}, grid:{color:'#2e333d'} }
+    }}
+  });
+}
+
+function renderOpsChart(){
+  const dates = datesInRange().slice(-60);
+  const data = dates.map(d=>{
+    const o = OPERATORS.find(x=>x.op_date===d);
+    return o ? o.count : 0;
+  });
+  const labels = dates.map(d => new Date(d+"T00:00:00").toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}));
+  if(chartOps) chartOps.destroy();
+  chartOps = new Chart(document.getElementById('chart-ops'), {
+    type:'bar',
+    data:{ labels, datasets:[{label:'Opérateurs', data, backgroundColor:'#4f8cff'}]},
+    options: baseChartOptions()
+  });
+}
+
+function buildDailyRows(){
+  const dates = [...new Set(CHARGES.filter(c=>inRange(c.charge_date)).map(c=>c.charge_date))].sort().reverse();
+  return dates.map(d=>{
+    const n = sumByTypeAndDate('neuf', x=>x===d);
+    const r = sumByTypeAndDate('reco', x=>x===d);
+    const op = OPERATORS.find(o=>o.op_date===d);
+    const opCount = op ? op.count : 0;
+    const total = n + r;
+    const ratio = opCount > 0 ? (total/opCount).toFixed(1) : '—';
+    const closed = isDateClosed(d);
+    return {date:d, neuf:n, reco:r, total, ops:opCount, ratio, closed};
+  });
+}
+
+function renderDayHistory(){
+  const rows = buildDailyRows();
+  document.getElementById('day-history-body').innerHTML = rows.map(r=>`<tr>
+    <td>${new Date(r.date+"T00:00:00").toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'})}</td>
+    <td style="color:#2fcf86">${r.neuf}</td>
+    <td style="color:#f5973d">${r.reco}</td>
+    <td style="font-weight:600">${r.total}</td>
+    <td>${r.ops || '—'}</td>
+    <td>${r.ratio}</td>
+    <td><span class="${r.closed?'st-closed':'st-open'}">${r.closed?'✓ Clôturée':'● En cours'}</span></td>
+  </tr>`).join('');
+}
+
+function exportExcel(){
+  if(typeof XLSX === 'undefined'){ toast("Chargement en cours…"); return; }
+  const wb = XLSX.utils.book_new();
+
+  // Feuille 1 — Par jour
+  const dailyRows = buildDailyRows().map(r=>({
+    'Date': new Date(r.date+"T00:00:00").toLocaleDateString('fr-FR'),
+    'Neuf': r.neuf,
+    'RECO': r.reco,
+    'Total': r.total,
+    'Opérateurs': r.ops || 0,
+    'Ratio réservoirs/opérateur': r.ratio === '—' ? '' : parseFloat(r.ratio),
+    'Statut': r.closed ? 'Clôturée' : 'En cours'
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dailyRows), 'Par jour');
+
+  // Feuille 2 — Saisies détaillées
+  const detail = CHARGES.filter(c=>inRange(c.charge_date)).map(c=>{
+    const dt = new Date(c.created_at);
+    return {
+      'Date': new Date(c.charge_date+"T00:00:00").toLocaleDateString('fr-FR'),
+      'Heure': dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
+      'Type': c.type === 'neuf' ? 'Neuf' : 'RECO',
+      'Quantité': c.quantity
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detail), 'Saisies détaillées');
+
+  const fname = `charge_reservoirs_${filterFrom}_${filterTo}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  toast("Export Excel téléchargé ✓");
+}
+
+function baseChartOptions(){
+  return {
+    responsive:true,
+    plugins:{ legend:{ labels:{ color:'#f2f4f7', font:{family:'Inter'} } } },
+    scales:{
+      x:{ ticks:{color:'#8a93a3'}, grid:{color:'#2e333d'} },
+      y:{ ticks:{color:'#8a93a3'}, grid:{color:'#2e333d'}, beginAtZero:true }
+    }
+  };
+}
+
+function renderHistory(){
+  const body = document.getElementById('history-body');
+  const rows = CHARGES.filter(c=>inRange(c.charge_date)).slice(0, 100);
+  body.innerHTML = rows.map(c=>{
+    const dt = new Date(c.created_at);
+    return `<tr>
+      <td>${new Date(c.charge_date+"T00:00:00").toLocaleDateString('fr-FR')}</td>
+      <td>${dt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
+      <td><span class="badge ${c.type}">${c.type === 'neuf' ? 'Neuf' : 'RECO'}</span></td>
+      <td>${c.quantity > 0 ? '+' : ''}${c.quantity}</td>
+      <td><button class="del-btn" data-id="${c.id}">supprimer</button></td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('.del-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(confirm("Supprimer cette saisie ?")) deleteCharge(b.dataset.id);
+    });
+  });
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+renderPin();
+const savedAuth = localStorage.getItem('cr_auth');
+if(savedAuth === 'admin'){ userRole = 'admin'; enterApp(); }
+else if(savedAuth === 'op'){ userRole = 'operateur'; enterApp(); }
+</script>
+</body>
+</html>
