@@ -101,6 +101,13 @@
     font-size:13px; padding:8px 12px; border-radius:8px; cursor:pointer; white-space:nowrap;
   }
   .logout-btn:active{background:var(--panel-2);}
+  .refresh-btn{
+    background:transparent; border:1px solid var(--border); color:var(--text-dim);
+    font-size:13px; padding:8px 12px; border-radius:8px; cursor:pointer; white-space:nowrap;
+  }
+  .refresh-btn:active{background:var(--panel-2);}
+  .refresh-btn.spinning{animation: spin .7s linear infinite; pointer-events:none;}
+  @keyframes spin{ to{transform:rotate(360deg);} }
 
   /* Clôture journée */
   .close-day-bar{
@@ -349,6 +356,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-view="dashboard">Saisie</button>
       <button class="tab-btn" data-view="stats">Statistiques</button>
+      <button class="refresh-btn" id="refresh-btn" title="Rafraîchir les données">↻</button>
       <button class="logout-btn" id="logout-btn">🔓 Quitter</button>
     </div>
   </header>
@@ -706,6 +714,22 @@ async function enterApp(){
   });
 
   document.getElementById('export-excel')?.addEventListener('click', exportExcel);
+
+  // Bouton Rafraîchir
+  document.getElementById('refresh-btn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('refresh-btn');
+    btn.classList.add('spinning');
+    await loadAllCharges();
+    await loadAllClosures();
+    await loadAllOperators();
+    await loadOperatorsForDate(selectedDateStr());
+    renderDashboard();
+    renderClosureBar();
+    checkBlockBanner();
+    if(document.getElementById('view-stats').classList.contains('active')) renderStats();
+    btn.classList.remove('spinning');
+    toast("Données actualisées ✓");
+  });
 
   // Bouton déconnexion
   document.getElementById('logout-btn').addEventListener('click', ()=>{
