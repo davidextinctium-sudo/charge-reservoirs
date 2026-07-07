@@ -899,19 +899,45 @@ function renderClosureBar(){
   const btn = document.getElementById('close-day-btn');
   if(label) label.textContent = new Date(selDate+"T00:00:00").toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
   if(closed){
-    btn.textContent = '✓ Journée clôturée';
-    btn.classList.add('closed');
-    btn.disabled = true;
+    if(userRole === 'admin'){
+      btn.textContent = '↩ Réouvrir la journée';
+      btn.classList.remove('closed');
+      btn.style.background = 'var(--reco-dim)';
+      btn.style.color = 'var(--reco)';
+      btn.style.borderColor = 'var(--reco)';
+      btn.disabled = false;
+      btn.onclick = ()=>reopenClosure(selDate);
+    } else {
+      btn.textContent = '✓ Journée clôturée';
+      btn.classList.add('closed');
+      btn.disabled = true;
+      btn.onclick = null;
+    }
   } else {
     btn.textContent = '✓ Clôturer la journée';
     btn.classList.remove('closed');
+    btn.style.background = '';
+    btn.style.color = '';
+    btn.style.borderColor = '';
     btn.disabled = false;
+    btn.onclick = ()=>closureAction();
   }
-  // Désactiver saisies si clôturée
+  // Désactiver saisies si clôturée ET pas admin
+  const locked = closed && userRole !== 'admin';
   document.querySelectorAll('.step-btn, #quick-add-neuf, #quick-add-reco').forEach(el=>{
-    el.disabled = closed;
-    el.style.opacity = closed ? '0.4' : '1';
+    el.disabled = locked;
+    el.style.opacity = locked ? '0.4' : '1';
   });
+}
+
+async function reopenClosure(dateStr){
+  if(!confirm(`Réouvrir la journée du ${new Date(dateStr+"T00:00:00").toLocaleDateString('fr-FR',{day:'numeric',month:'long'})} ?`)) return;
+  const { error } = await sb.from('closures').delete().eq('closure_date', dateStr);
+  if(error){ toast("Erreur: "+error.message); return; }
+  await loadAllClosures();
+  renderClosureBar();
+  checkBlockBanner();
+  toast("Journée réouverte ✓");
 }
 
 document.getElementById('ops-input').addEventListener('change', (e)=>{
